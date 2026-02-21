@@ -5,35 +5,54 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeech.*
 import android.speech.tts.UtteranceProgressListener
 import com.streamliners.base.exception.BusinessException
+import com.streamliners.timify.feature.voice.sarvam.SarvamTTSService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.Locale
-import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
+/**
+ * Text-to-Speech helper that supports:
+ * - Sarvam AI Bulbul v3 for Hindi (primary)
+ * - Android built-in TTS for English (fallback)
+ */
 class TTSHelper(
-    private val context: Context
+    private val context: Context,
+    private val sarvamTTS: SarvamTTSService? = null
 ) {
 
     private var tts: TextToSpeech? = null
 
-    suspend fun speak(text: String) {
-        if (tts == null) {
-            init(context, text)
+    /**
+     * Speak text using the appropriate TTS engine.
+     * Uses Sarvam for Hindi, Android TTS for English.
+     */
+    suspend fun speak(text: String, useHindi: Boolean = false) {
+        if (useHindi && sarvamTTS != null) {
+            sarvamTTS.speak(text)
         } else {
-            speakText(text)
+            speakWithAndroidTTS(text)
         }
     }
 
     fun stop() {
         tts?.stop()
+        sarvamTTS?.stop()
     }
 
     fun shutdown() {
         tts?.shutdown(); tts = null
+        sarvamTTS?.shutdown()
+    }
+
+    private suspend fun speakWithAndroidTTS(text: String) {
+        if (tts == null) {
+            init(context, text)
+        } else {
+            speakText(text)
+        }
     }
 
     private suspend fun init(context: Context, text: String) {

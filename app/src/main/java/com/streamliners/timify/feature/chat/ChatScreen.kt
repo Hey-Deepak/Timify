@@ -34,6 +34,9 @@ import com.streamliners.timify.feature.chat.comp.TextInput
 import com.streamliners.timify.feature.chat.comp.VoiceMode
 import com.streamliners.timify.feature.chat.viewModelExt.ENABLE_INSIGHTS_CHAT
 import com.streamliners.timify.feature.voice.SpeechRecognitionButton
+import com.streamliners.timify.feature.voice.sarvam.SarvamSpeechRecognitionButton
+import com.streamliners.timify.feature.voice.sarvam.SarvamSTTService
+import org.koin.compose.koinInject
 import com.streamliners.timify.ui.main.Screen
 
 @Composable
@@ -118,7 +121,10 @@ fun ChatScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SpeechRecognitionButton(
+                // Sarvam AI Hindi voice input
+                val sttService: SarvamSTTService = koinInject()
+                SarvamSpeechRecognitionButton(
+                    sttService = sttService,
                     onInput = { input, nextInput ->
                         prompt.value = input
                         viewModel.mode.value = ChatViewModel.Mode.Voice

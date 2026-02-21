@@ -13,6 +13,8 @@ import com.streamliners.timify.feature.ai.GeminiProvider
 import com.streamliners.timify.feature.chat.ChatViewModel
 import com.streamliners.timify.feature.pieChart.PieChartViewModel
 import com.streamliners.timify.feature.sheetSync.SheetSyncViewModel
+import com.streamliners.timify.feature.voice.sarvam.SarvamSTTService
+import com.streamliners.timify.feature.voice.sarvam.SarvamTTSService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import org.koin.android.ext.koin.androidApplication
@@ -48,7 +50,6 @@ private val appModule = module {
     single {
         get<LocalDB>().customAttributeDao()
     }
-    single { TTSHelper(androidApplication()) }
     single { GoogleOAuthTokensFetcher(get()) }
     single { DataStoreUtil.create(androidApplication()) }
     single { LocalRepo(get()) }
@@ -58,6 +59,24 @@ private val appModule = module {
     single<AIProvider> {
         ClaudeProvider(BuildConfig.anthropicApiKey)
     }
+
+    // Sarvam AI Voice Services (Hindi)
+    single {
+        SarvamTTSService(
+            httpClient = get(),
+            apiKey = BuildConfig.sarvamApiKey,
+            cacheDir = androidApplication().cacheDir
+        )
+    }
+    single {
+        SarvamSTTService(
+            httpClient = get(),
+            apiKey = BuildConfig.sarvamApiKey
+        )
+    }
+
+    // TTS Helper with Sarvam support for Hindi
+    single { TTSHelper(androidApplication(), get<SarvamTTSService>()) }
 }
 
 private val viewModelModule = module {
