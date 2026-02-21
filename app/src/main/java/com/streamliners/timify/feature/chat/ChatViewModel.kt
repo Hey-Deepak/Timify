@@ -1,9 +1,6 @@
 package com.streamliners.timify.feature.chat
 
 import androidx.compose.runtime.mutableStateOf
-import com.google.ai.client.generativeai.Chat
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.Content
 import com.streamliners.base.BaseViewModel
 import com.streamliners.base.exception.log
 import com.streamliners.base.ext.execute
@@ -18,16 +15,16 @@ import com.streamliners.timify.data.local.dao.ChatHistoryDao
 import com.streamliners.timify.data.local.dao.TaskInfoDao
 import com.streamliners.timify.domain.model.ChatHistoryItem
 import com.streamliners.timify.domain.model.TaskInfo
+import com.streamliners.timify.feature.ai.AIProvider
+import com.streamliners.timify.feature.ai.ChatMessage
+import com.streamliners.timify.feature.ai.SystemPrompts
 import com.streamliners.timify.feature.chat.ChatViewModel.ChatType.Insights
 import com.streamliners.timify.feature.chat.ChatViewModel.ChatType.Normal
 import com.streamliners.timify.feature.chat.viewModelExt.insightResponseFor
-import com.streamliners.timify.feature.chat.viewModelExt.toContentList
+import com.streamliners.timify.feature.chat.viewModelExt.toChatMessages
 import com.streamliners.timify.feature.chat.viewModelExt.toUIItems
-import com.streamliners.timify.feature.genAI.GeminiModel
 import com.streamliners.timify.other.ext.calculateTimeDiffInMins
-import com.streamliners.timify.other.ext.send
 import com.streamliners.utils.DateTimeUtils
-import com.streamliners.utils.DateTimeUtils.Format.Companion.DATE_MONTH_YEAR_1
 import com.streamliners.utils.DateTimeUtils.formatTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -36,11 +33,12 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
     private val chatHistoryDao: ChatHistoryDao,
     val taskInfoDao: TaskInfoDao,
-    val ttsHelper: TTSHelper
+    val ttsHelper: TTSHelper,
+    private val aiProvider: AIProvider
 ) : BaseViewModel() {
 
     data class ChatHistoryUIItem(
-        val content: Content,
+        val message: String,
         val time: Long,
         val formattedTime: String,
         val date: String,
@@ -57,19 +55,18 @@ class ChatViewModel(
 
     enum class Mode { Text, Voice }
 
-    private lateinit var generativeModel: GenerativeModel
-
     val type = mutableStateOf(Normal)
     val mode = mutableStateOf(Mode.Text)
     val data = taskStateOf<Data>()
 
     private val currentDate = formatTime(DateTimeUtils.Format("yyyy/MM/dd"))
 
-    lateinit var chat: Chat
-
     var isNewChatHappened = mutableStateOf(true)
 
     private var collectJob: Job? = null
+
+    // In-memory conversation history for the current session
+    private var conversationHistory: List<ChatMessage> = emptyList()
 
     fun loadChat() {
         execute(false) {
@@ -80,12 +77,12 @@ class ChatViewModel(
                 chatHistoryDao.getList(currentDate, type.value.name).collectLatest { chatHistory ->
                     if (isFirstFetch) {
                         isFirstFetch = false
-
-                        generativeModel = GeminiModel.get(type.value)
-
-                        chat = generativeModel.startChat(
-                            if (type.value == Normal) chatHistory.toContentList() else emptyList()
-                        )
+                        // Load conversation history from database
+                        conversationHistory = if (type.value == Normal) {
+                            chatHistory.toChatMessages()
+                        } else {
+                            emptyList()
+                        }
                     }
                     data.update(
                         Data(chatHistory.toUIItems())
@@ -105,11 +102,26 @@ class ChatViewModel(
 
             isNewChatHappened.value = true
 
-            var response = chat.send(prompt)
+            val systemPrompt = when (type.value) {
+                Normal -> SystemPrompts.NORMAL_CHAT
+                Insights -> SystemPrompts.INSIGHTS_CHAT
+            }
+
+            var response = aiProvider.chat(
+                systemPrompt = systemPrompt,
+                messages = conversationHistory,
+                userMessage = prompt
+            )
 
             if (type.value == Insights) {
                 response = insightResponseFor(response)
             }
+
+            // Update in-memory conversation history
+            conversationHistory = conversationHistory + listOf(
+                ChatMessage(ChatMessage.Role.USER, prompt),
+                ChatMessage(ChatMessage.Role.ASSISTANT, response)
+            )
 
             chatHistoryDao.add(
                 ChatHistoryItem(
@@ -145,7 +157,13 @@ class ChatViewModel(
                 return@execute
             }
 
-            val response = chat.send("give data in csv")
+            val systemPrompt = SystemPrompts.NORMAL_CHAT
+
+            val response = aiProvider.chat(
+                systemPrompt = systemPrompt,
+                messages = conversationHistory,
+                userMessage = "give data in csv"
+            )
 
             val lines = response.split("\n").dropLast(1)
 
