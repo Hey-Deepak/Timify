@@ -11,5 +11,13 @@ data class TaskInfo(
     val startTime: String,
     val endTime: String,
     val durationInMins: Int,
-    val name: String
-)
+    val name: String,
+    val category: String = "",
+    val source: String = SOURCE_VOICE
+) {
+    companion object {
+        const val SOURCE_VOICE = "voice"
+        const val SOURCE_MANUAL = "manual"
+        const val SOURCE_CHAT = "chat"
+    }
+}

@@ -3,18 +3,19 @@ package com.streamliners.timify.di
 import android.app.Application
 import com.streamliners.timify.BuildConfig
 import com.streamliners.timify.android.helper.DataStoreUtil
-import com.streamliners.timify.android.helper.GoogleOAuthTokensFetcher
 import com.streamliners.timify.android.helper.TTSHelper
 import com.streamliners.timify.data.local.LocalDB
 import com.streamliners.timify.data.local.LocalRepo
 import com.streamliners.timify.feature.ai.AIProvider
 import com.streamliners.timify.feature.ai.ClaudeProvider
-import com.streamliners.timify.feature.ai.GeminiProvider
 import com.streamliners.timify.feature.chat.ChatViewModel
+import com.streamliners.timify.feature.home.HomeViewModel
+import com.streamliners.timify.feature.insights.InsightsViewModel
 import com.streamliners.timify.feature.pieChart.PieChartViewModel
-import com.streamliners.timify.feature.sheetSync.SheetSyncViewModel
+import com.streamliners.timify.feature.stats.StatsViewModel
 import com.streamliners.timify.feature.voice.sarvam.SarvamSTTService
 import com.streamliners.timify.feature.voice.sarvam.SarvamTTSService
+import com.streamliners.timify.feature.voiceCapture.VoiceCaptureViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import org.koin.android.ext.koin.androidApplication
@@ -50,12 +51,10 @@ private val appModule = module {
     single {
         get<LocalDB>().customAttributeDao()
     }
-    single { GoogleOAuthTokensFetcher(get()) }
     single { DataStoreUtil.create(androidApplication()) }
     single { LocalRepo(get()) }
 
     // AI Provider - Claude (primary) via Koog framework
-    // To switch to Gemini, change to: GeminiProvider(BuildConfig.apiKey)
     single<AIProvider> {
         ClaudeProvider(BuildConfig.anthropicApiKey)
     }
@@ -80,7 +79,13 @@ private val appModule = module {
 }
 
 private val viewModelModule = module {
+    // New screens
+    viewModel { HomeViewModel(get()) }
+    viewModel { VoiceCaptureViewModel(get(), get(), get(), get()) }
+    viewModel { StatsViewModel(get()) }
+    viewModel { InsightsViewModel(get(), get()) }
+
+    // Legacy screens
     viewModel { ChatViewModel(get(), get(), get(), get()) }
     viewModel { PieChartViewModel(get(), get()) }
-    viewModel { SheetSyncViewModel(get(), get(), get(), get()) }
 }
